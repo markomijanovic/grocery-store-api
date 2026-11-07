@@ -1,0 +1,29 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+.nyc_output/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.test.example
+*.pem
+*.key
+
+# Logs and operating system files
+*.log
+.DS_Store
+
+# Local planning documents and generated exports
+/docs/SSU.md
+/docs/PLAN-IZRADE.md
+/docs/PLAN-ZA-PREGLED.md
+/output/
+/tmp/
+
+# Local tooling state
+.codex/
+.agents/
+.aws/
