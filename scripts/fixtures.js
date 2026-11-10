@@ -88,3 +88,15 @@ export function buildTree(rows){
 }
 
 export const organizationNodes = buildTree(definitions);
+
+export function demoUsers() {
+  return organizationNodes.flatMap(node =>
+    ['employee', 'manager'].map(role => ({
+      firstName: 'Demo',
+      lastName: `${node.name} ${role}`,
+      email: `${role}.${node._id}@example.test`,
+      role,
+      nodeId: node._id,
+    })),
+  );
+}
