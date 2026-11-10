@@ -15,3 +15,19 @@ export async function connectDatabase({mongoUri, dbName}) {
         throw error;
     }
 }
+
+export async function ensureIndexes(db) {
+    await db.collection('nodes').createIndex({ancestors: 1});
+
+
+    await db.collection('users').createIndex(
+        {email:1},
+        {unique: true},
+    );
+
+    await db.collection('users').createIndex({
+        nodeId:1,
+        role: 1,
+        _id: 1,
+    });
+}

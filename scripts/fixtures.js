@@ -1,5 +1,4 @@
 
-
 const definitions = [
   ['srbija', 'Srbija', null],
   ['vojvodina', 'Vojvodina', 'srbija'],
