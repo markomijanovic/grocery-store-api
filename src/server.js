@@ -1,14 +1,12 @@
 import express from 'express';
 import { connectDatabase } from './db.js';
-
+import { readConfig } from './config.js';
 const app = express();
 
-const port = Number(process.env.PORT ?? 3000) // load port from env but if not defined use 3000
 
-const {db} = await connectDatabase({
-    mongoUri: process.env.MONGODB_URI,
-    dbName: process.env.MONGODB_DB,
-});
+const config = readConfig();
+
+const {db} = await connectDatabase(config);
 
 console.log("Connected to mongo!");
 
@@ -26,6 +24,6 @@ app.get('/ready',async(req,res)=>{
     }
 })
 
-app.listen(port, '127.0.0.1', ()=>{
-    console.log(`Server is running at http://127.0.0.1:${port}`);
+app.listen(config.port, '127.0.0.1', ()=>{
+    console.log(`Server is running at http://127.0.0.1:${config.port}`);
 });
