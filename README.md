@@ -1,28 +1,17 @@
 # Grocery Store API
 
-A Node.js HTTP API for employee and manager accounts in an organizational hierarchy. Permissions combine the caller's role with their assigned node and its descendants.
+A REST API for managing employee and manager accounts across a tree of offices and stores. Built with Node.js 24, Express 5 and MongoDB.
 
-Includes authentication, CRUD for both roles, direct-node and subtree lists, pagination, an idempotent seed, and Docker Compose.
+Access depends on the user's role and where they belong in the organization:
 
-**Verified:** 44 automated tests (16 unit + 28 HTTP integration), plus a 19-request end-to-end demo. The read policy checks all 2,116 role/node combinations against an independent parent-traversal oracle.
+- Employees can read employee accounts at their own node and below it.
+- Managers can create, read, update and delete both employees and managers within that same scope.
 
-- [Run and verify](#quick-review-with-docker)
-- [Demo accounts](#demo-accounts)
-- [Postman walkthrough](#postman-walkthrough)
-- [API contract](#api-contract)
-- [Architecture](docs/architecture.md) and [business assumptions](docs/assumptions.md)
+For example, a manager assigned to Novi Beograd can manage accounts in Novi Beograd, Bežanija and Radnja 6, but cannot access the Vračar branch.
 
-## Requirements
+## Run the project
 
-- Node.js 24.x and npm.
-- Docker Desktop or Docker Engine with Docker Compose.
-- Free local ports 3000 and 27018 by default.
-
-No cloud database account is required. Organization names retain the labels in the supplied diagram; code, API messages and documentation are in English.
-
-## Quick review with Docker
-
-Requires Node.js 24.x for the environment setup script, Git, and a running Docker engine with Compose. Docker installs the application's runtime dependencies during the image build.
+You'll need Git, Node.js 24.x and a running Docker installation with Compose.
 
 ```bash
 git clone https://github.com/markomijanovic/grocery-store-api.git
@@ -33,70 +22,40 @@ docker compose exec -T api node scripts/seed.js
 docker compose exec -T api node scripts/demo.js
 ```
 
-The seed creates **23 organization nodes and 46 demo accounts** on a fresh database. The demo exercises login, allowed and forbidden scopes, and create/read/update/move/delete for both account types. It finishes with `Demo passed` and removes the temporary accounts it creates.
+The setup script creates a local `.env` with a random JWT secret and demo password. If `.env` already exists, it leaves it alone. Docker installs the application dependencies during the build.
 
-Default API URL: **http://127.0.0.1:3000**. This is an HTTP API; use its routes or the Postman collection to interact with it.
+The seed adds 23 organization nodes and 46 accounts to a fresh database: one employee and one manager per node. The demo signs in, checks access rules and runs CRUD operations for both roles. It should finish with `Demo passed` and remove the temporary accounts it created.
+
+By default, the API is at `http://127.0.0.1:3000` and MongoDB is exposed on localhost port `27018`.
 
 ```bash
 curl http://127.0.0.1:3000/health
 curl http://127.0.0.1:3000/ready
-docker compose ps
 ```
 
-Both health endpoints should return HTTP 200. Their bodies are `{"status":"ok"}` and `{"status":"ready"}` respectively. Both Compose services should be healthy.
+Expected responses are `{"status":"ok"}` and `{"status":"ready"}`. The second endpoint also checks the database connection.
 
-To run all automated tests against the running MongoDB service:
+If you use a different `PORT` in `.env`, use that port in requests and Postman. If you change `MONGO_PORT`, also update the port in `MONGODB_URI` for commands run on the host. Inside Docker, the API connects to `mongo:27017`.
 
-```bash
-npm ci
-npm run test:all
-```
+To stop the services, run `docker compose down`. The database volume is kept for the next run.
 
-Expected result: **16 passing unit tests and 28 passing HTTP integration tests**. Integration tests create unique databases and clean up only their own test data.
+## Try the API
 
-`npm run setup` uses Node's standard library. It creates an ignored `.env` with a random JWT secret and a random local demo password. Existing environment files are preserved.
+Import [the Postman collection](docs/Grocery-Store-API.postman_collection.json), then set its `baseUrl` and `demoPassword` variables. The password is the `SEED_PASSWORD` value from your local `.env`.
 
-| Setting | Default | Purpose |
-|---|---|---|
-| `PORT` | `3000` | API port on the host |
-| `MONGO_PORT` | `27018` | MongoDB port on the host |
-| `MONGODB_URI` | `mongodb://127.0.0.1:27018` | Database connection for local Node commands and tests |
-| `MONGODB_DB` | `grocery_store_dev` | Development database |
+Run **Login as manager** and **Login as employee** first. Their response scripts save the tokens used by the remaining requests. The collection includes account creation, updates, deletion, lists and requests that should be denied.
 
-The API URL follows `PORT` in your `.env`. If you already have an environment file, use its configured port in examples and Postman. Containers use API port 3000 and the internal `mongo:27017` address regardless of the host port mappings. Changing `MONGO_PORT` also requires updating the port in `MONGODB_URI` for local Node commands and tests.
+Some useful seed accounts:
 
-Stop the application with `docker compose down`; its named MongoDB volume is retained.
-
-## Local Node development
-
-```bash
-npm ci
-npm run setup
-docker compose up -d --wait mongo
-npm run seed
-npm run dev
-```
-
-`npm run dev` restarts the process when source files change. `npm start` runs without watch mode. Stop Docker's API container before starting a local Node process on the same port.
-
-Fixtures are upserted by stable node ID and canonical demo-account email. On a fresh database it creates 23 organization nodes and 46 accounts: one employee and one manager per node. Re-running it preserves existing profiles/passwords and does not duplicate fixtures. Conflicting organization paths are rejected instead of silently overwritten.
-
-## Demo accounts
-
-Use the `SEED_PASSWORD` generated in your ignored `.env` file. Every local demo account uses that password, with an independently salted hash. Set it before the first seed; changing it later does not reset existing account passwords.
-
-| Email | Role and scope |
+| Email | Access |
 |---|---|
-| `manager.srbija@example.test` | Manager of the complete tree |
-| `manager.novi-beograd@example.test` | Manager of Novi Beograd, Bežanija and Radnja 6 |
-| `employee.novi-beograd@example.test` | Read-only access to employees in those same nodes |
-| `manager.vracar@example.test` | Manager of a separate branch |
+| `manager.srbija@example.test` | Both account types across the whole tree |
+| `manager.novi-beograd@example.test` | Both account types in Novi Beograd and its descendants |
+| `employee.novi-beograd@example.test` | Read-only access to employees in those nodes |
 
-Other fixtures follow `<role>.<node-id>@example.test`. These credentials are for local review only.
+All seed accounts use `SEED_PASSWORD`. Changing that setting after seeding does not reset existing passwords; rerunning the seed preserves existing accounts.
 
-## Example walkthrough
-
-Replace `PASTE_YOUR_SEED_PASSWORD` with the value from your local `.env`. Examples use the default API port 3000; use your configured `PORT` when it differs.
+If you prefer curl, start with login:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/v1/auth/login \
@@ -104,50 +63,34 @@ curl -X POST http://127.0.0.1:3000/api/v1/auth/login \
   -d '{"email":"manager.novi-beograd@example.test","password":"PASTE_YOUR_SEED_PASSWORD"}'
 ```
 
-Copy `accessToken` from the response:
+Copy the returned `accessToken` into `TOKEN`:
 
 ```bash
 TOKEN='paste-access-token-here'
 curl -H "Authorization: Bearer $TOKEN" \
-  'http://127.0.0.1:3000/api/v1/nodes/novi-beograd/employees?includeDescendants=false'
-curl -H "Authorization: Bearer $TOKEN" \
   'http://127.0.0.1:3000/api/v1/nodes/novi-beograd/employees?includeDescendants=true'
-curl -H "Authorization: Bearer $TOKEN" \
-  'http://127.0.0.1:3000/api/v1/nodes/vracar/employees'
 ```
 
-On a fresh seed, the first two queries return one and three employees respectively. The third returns 404: Vračar is outside the caller's scope. An employee token receives 403 for manager queries or any mutation.
+On a fresh seed this returns three employees. With `includeDescendants=false`, it returns only the one assigned directly to Novi Beograd. Asking for `/nodes/vracar/employees` with that token returns 404 because Vračar is outside its scope.
 
-## Postman walkthrough
+## Endpoints
 
-The [Postman collection](docs/Grocery-Store-API.postman_collection.json) contains 17 prepared requests with URLs, headers, bodies, and token-saving scripts.
+All paths below start with `/api/v1`. Apart from login, they require an `Authorization: Bearer <token>` header. Access tokens last 15 minutes.
 
-1. In Postman, choose **Import**, then select `docs/Grocery-Store-API.postman_collection.json`.
-2. Open the collection's variables and set `baseUrl` to your API URL; the default is `http://127.0.0.1:3000`.
-3. Set `demoPassword` to the `SEED_PASSWORD` in your local `.env`.
-4. Run **Login as manager** and **Login as employee**. Their response scripts save the tokens for subsequent requests.
-5. Run the prepared identity, list, forbidden-scope, and CRUD requests. The delete requests remove accounts created by the collection.
-
-The exported collection contains no real credentials or access tokens. The default manager is assigned to Novi Beograd, so its scope is Novi Beograd, Bežanija, and Radnja 6.
-
-For an automated walkthrough from the host, run `npm run demo` while the API is running. It reads the configured port and demo password from `.env` and does not print credentials.
-
-## API contract
-
-Business routes use `/api/v1` and Bearer authentication, except login. User IDs must be 24-character ObjectId hex strings. Node IDs are stable slugs such as `novi-beograd`.
-
-| Method | Route | Purpose |
+| Method | Path | Action |
 |---|---|---|
-| POST | `/auth/login` | Obtain a 15-minute access token |
-| GET | `/auth/me` | Read the current account |
-| POST | `/employees`, `/managers` | Create an account of the route's type |
-| GET | `/employees/:id`, `/managers/:id` | Read an account |
-| PATCH | `/employees/:id`, `/managers/:id` | Edit a profile or its assigned node |
+| POST | `/auth/login` | Sign in |
+| GET | `/auth/me` | Get the current account |
+| POST | `/employees`, `/managers` | Create an account |
+| GET | `/employees/:id`, `/managers/:id` | Get an account |
+| PATCH | `/employees/:id`, `/managers/:id` | Update an account |
 | DELETE | `/employees/:id`, `/managers/:id` | Delete an account |
-| GET | `/nodes/:nodeId/employees` | List employees directly or throughout a subtree |
-| GET | `/nodes/:nodeId/managers` | List managers directly or throughout a subtree |
+| GET | `/nodes/:nodeId/employees` | List employees |
+| GET | `/nodes/:nodeId/managers` | List managers |
 
-Create body:
+User IDs are MongoDB ObjectId strings. Node IDs are slugs such as `novi-beograd`.
+
+Example body for creating an account:
 
 ```json
 {
@@ -159,15 +102,9 @@ Create body:
 }
 ```
 
-PATCH accepts at least one of `firstName`, `lastName`, `email`, `nodeId`. Unknown fields, role/credential changes and client-supplied timestamps are rejected. Passwords are 12-128 characters on creation and are never trimmed. Email is trimmed, lowercased and globally unique across both types.
+The route determines the role. PATCH accepts `firstName`, `lastName`, `email` and `nodeId`, with at least one field required. Role and password changes are not supported. Unknown fields are rejected. Emails are trimmed, lowercased and unique across both account types; passwords must be 12–128 characters when creating an account.
 
-| List parameter | Default | Accepted values |
-|---|---|---|
-| `includeDescendants` | `false` | Exactly `true` or `false`; subtree mode includes the starting node |
-| `page` | `1` | Integers 1-10000 |
-| `limit` | `20` | Integers 1-100 |
-
-Unknown or repeated query arguments are rejected. Lists have stable `_id` ordering and return a flat collection; the tree controls scope, not JSON nesting.
+List endpoints accept `includeDescendants` (`true` or `false`, default `false`), `page` (1–10000, default 1) and `limit` (1–100, default 20). Results are flat and ordered by `_id`:
 
 ```json
 {
@@ -176,9 +113,9 @@ Unknown or repeated query arguments are rejected. Lists have stable `_id` orderi
 }
 ```
 
-Create/read/update responses contain only public user fields. Create returns 201 and a `Location` header; delete returns 204 without a body. No response contains password hashes.
+Creation returns 201 with a `Location` header. Deletion returns 204 with no body. Missing resources and resources outside the caller's scope both return 404. An action forbidden for the caller's role returns 403; a duplicate email or a conditional-write conflict returns 409.
 
-Errors use a consistent envelope:
+Errors follow this format:
 
 ```json
 {
@@ -186,75 +123,50 @@ Errors use a consistent envelope:
 }
 ```
 
-| Status | Meaning |
-|---|---|
-| 400 | Invalid input, malformed JSON or protected fields |
-| 401 | Missing/invalid token or invalid login credentials |
-| 403 | The actor's role cannot perform this action |
-| 404 | Missing resource, wrong account type, or resource outside scope |
-| 409 | Duplicate normalized email or a target moved during a conditional mutation |
-| 413 | JSON body exceeds 16 KB |
-| 429 | Too many failed login attempts; includes `Retry-After` |
-| 500 | Unexpected failure; internal details are not exposed |
-| 503 | Readiness check cannot reach MongoDB |
+## Local development and tests
 
-## Tests
-
-Unit tests require no database:
+To run Node directly while keeping MongoDB in Docker:
 
 ```bash
 npm ci
-npm test
+npm run setup
+docker compose stop api
+docker compose up -d --wait mongo
+npm run seed
+npm run dev
 ```
 
-For HTTP integration tests, create `.env` and start MongoDB first:
+`npm run dev` restarts the server when source files change. `npm start` runs without watching. Stop the local process before starting Docker's API again on the same port.
 
 ```bash
-npm run setup
-docker compose up -d --wait mongo
+npm test
 npm run test:integration
-# Or run both groups:
-npm run test:all
 ```
 
-Integration tests create unique `grocery_test_*` databases and remove only those databases. They do not seed, modify or delete development data. `TEST_MONGODB_URI` can select another MongoDB instance; by default tests use `MONGODB_URI` from `.env`.
+There are 16 unit tests and 28 HTTP integration tests. Unit tests do not need MongoDB. Integration tests use separate `grocery_test_*` databases and clean up their own data. They use `MONGODB_URI` unless `TEST_MONGODB_URI` is set. `npm run test:all` runs both groups.
 
-Checks cover:
+The tests cover permissions across the tree, authentication, both CRUD workflows, moves between nodes, pagination, concurrent duplicate emails and seed behavior. To exercise an already running API, use `npm run demo`.
 
-- All 2116 read combinations across roles and nodes, using an independent parent-traversal oracle.
-- Mutation scopes, validation, safe DTOs and conditional-write conflicts.
-- Authentication, token signatures/claims/expiry and login rate limiting.
-- Both CRUD workflows, all four list modes, direct-ID access and forbidden branches.
-- Both unauthorized movement directions, current actor reassignment and self-deletion.
-- Concurrent duplicate email writes, protected fields, pagination, seed idempotence and safe operational errors.
-
-## Architecture and decisions
+## How the code is organized
 
 ```mermaid
 flowchart LR
-    CLIENT[API client] --> ROUTES[Routes and input validation]
-    ROUTES --> SERVICES[AuthService and UserService]
-    SERVICES --> POLICY[AccessPolicy]
-    SERVICES --> REPOSITORIES[UserRepository and NodeRepository]
-    REPOSITORIES --> DB[(MongoDB)]
-    SERVICES --> DTO[Public user DTO]
-    DTO --> RESPONSE[JSON response]
+    Client --> HTTP[Routes and middleware]
+    HTTP --> Services
+    Services --> Policy[Access policy]
+    Services --> Repositories
+    Repositories --> MongoDB[(MongoDB)]
+    Services --> DTO[Public user DTO]
 ```
 
-| Layer | Responsibility | Entry points |
-|---|---|---|
-| HTTP | Authentication middleware, validation, status codes and error envelopes | `src/auth/`, `src/users/users.routes.js`, `src/http/` |
-| Services | Login and account workflows, including permission checks | `auth.service.js`, `users.service.js` |
-| Policy | Role permissions and hierarchy boundaries | `src/policies/access.policy.js` |
-| Repositories | MongoDB queries and conditional mutations | `users.repository.js`, `nodes.repository.js` |
-| DTO | Explicitly selected public user fields | `users.dto.js` |
-| Composition | Construct and inject concrete dependencies | `src/bootstrap.js` |
-| Runtime | Configuration, startup, readiness and graceful shutdown | `src/config.js`, `src/server.js` |
+Routes handle HTTP input and responses. Services carry out the account operations and check permissions. Repositories contain the MongoDB queries. `bootstrap.js` creates these objects and passes their dependencies in, so the services can also be tested with small test doubles.
 
-Both account types use one collection and one user service. Their routes provide the trusted target role. The organization uses `parentId` and an `ancestors` array, with an index for subtree queries.
+Both account types share the `users` collection and the same service. Organization nodes store `parentId` and an `ancestors` array. A node is in scope when it is the caller's own node or has that node among its ancestors.
 
-Authentication verifies the JWT and reloads the current user from MongoDB on every request. Authorization then checks the current role and node assignment. Password hashes are excluded from public responses through projections and explicit DTO mapping.
+Passwords are hashed with Argon2id. JWTs identify the account, while its current role and node are loaded from MongoDB on each authenticated request. Moving or deleting an account therefore affects its next request. Public responses use an explicit field list and never include password hashes.
 
-Before a move, the service checks both the source and destination nodes. Conditional update/delete filters also include the previously checked node and account role. A unique normalized-email index handles concurrent duplicate requests; conflicts map to HTTP 409.
+Moving an account requires access to both its current and destination nodes. Update and delete filters include the previously checked node and role to catch changes before the write. This is not full document versioning: concurrent profile edits can still use last-write-wins. Email uniqueness is enforced by a MongoDB unique index.
 
-See the [architecture walkthrough](docs/architecture.md) for request flow, storage choices, concurrency limits and alternatives. The [business assumptions](docs/assumptions.md) document decisions such as immutable roles, self-deletion, flat lists and the single-process rate limiter.
+The organization tree is seeded from the supplied diagram; editing the tree is outside this API's scope. There is no password-reset or refresh-token flow. The login limiter stores its counters in one process, so running multiple API instances would require a shared store.
+
+See [architecture.md](docs/architecture.md) for the request flow and concurrency details, and [assumptions.md](docs/assumptions.md) for the remaining behavior choices.
