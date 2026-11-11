@@ -12,7 +12,7 @@ try {
   await ensureIndexes(connection.db);
 
   const { app } = await buildApplication({ db: connection.db, config });
-  const host = '127.0.0.1';
+  const host = config.host;
 
   const server = app.listen(config.port, host, () => {
     console.log(`Server is running at http://${host}:${config.port}`);

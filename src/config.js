@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
 const environmentSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production'])
+    .default('development'),
+
+  HOST: z.string().min(1).default('127.0.0.1'),
+
   PORT: z.string()
     .regex(/^\d+$/)
     .default('3000')
@@ -41,6 +46,8 @@ export function readConfig(env = process.env) {
   }
 
   return Object.freeze({
+    nodeEnv: result.data.NODE_ENV,
+    host: result.data.HOST,
     port: result.data.PORT,
     mongoUri: result.data.MONGODB_URI,
     dbName: result.data.MONGODB_DB,
