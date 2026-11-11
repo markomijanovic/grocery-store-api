@@ -5,6 +5,7 @@ import { organizationNodes } from '../../scripts/fixtures.js';
 import {
   canRead,
   canManage,
+  accessPolicy,
 } from '../../src/policies/access.policy.js';
 
 const roles = ['employee', 'manager'];
@@ -93,4 +94,34 @@ test('unknown roles and missing inputs are denied', () => {
   assert.equal(canManage(undefined, target), false);
   assert.equal(canRead(manager, 'employee', undefined), false);
   assert.equal(canManage(manager, undefined), false);
+});
+
+test('action guards enforce permissions and scope guards hide inaccessible nodes', () => {
+  for (const role of ['employee', 'manager', 'admin']) {
+    for (const action of ['read', 'manage', 'promote']) {
+      for (const targetRole of ['employee', 'manager', 'admin']) {
+        const allowed =
+          roles.includes(role) &&
+          roles.includes(targetRole) &&
+          (
+            (action === 'read' && (role === 'manager' || targetRole === 'employee')) ||
+            (action === 'manage' && role === 'manager')
+          );
+
+        const attempt = () => accessPolicy.assertAction({ role }, action, targetRole);
+
+        if (allowed) {
+          assert.doesNotThrow(attempt);
+        } else {
+          assert.throws(attempt, { status: 403 });
+        }
+      }
+    }
+  }
+
+  const manager = { role: 'manager', nodeId: 'novi-beograd' };
+
+  assert.doesNotThrow(() => accessPolicy.assertScope(manager, nodesById.get('radnja-6')));
+  assert.throws(() => accessPolicy.assertScope(manager, nodesById.get('vracar')), { status: 404 });
+  assert.throws(() => accessPolicy.assertScope(manager, undefined), { status: 404 });
 });

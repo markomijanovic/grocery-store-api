@@ -2,11 +2,13 @@ import express from 'express';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import { createAuthRouter } from './auth/auth.routes.js';
+import { createUserRouter } from './users/users.routes.js';
 import { AppError, notFound } from './http/errors.js';
 import { errorHandler } from './http/middleware.js';
 
 export function createApp({
   authService,
+  userService,
   authenticate,
   config,
   checkReadiness,
@@ -45,6 +47,8 @@ export function createApp({
     authenticate,
     config,
   }));
+
+  app.use('/api/v1', createUserRouter({ userService, authenticate }));
 
   app.use((req, res, next) => next(notFound()));
   app.use(errorHandler(logger));
