@@ -12,6 +12,19 @@ const environmentSchema = z.object({
 
   MONGODB_DB: z.string()
     .regex(/^[a-zA-Z0-9_-]+$/),
+
+  JWT_SECRET: z.string().refine(
+    value => Buffer.byteLength(value, 'utf8') >= 32,
+    'JWT secret must contain at least 32 bytes.',
+  ),
+
+  JWT_ISSUER: z.string()
+    .min(1)
+    .default('grocery-store-api'),
+
+  JWT_AUDIENCE: z.string()
+    .min(1)
+    .default('grocery-store-review'),
 });
 
 export function readConfig(env = process.env) {
@@ -31,5 +44,11 @@ export function readConfig(env = process.env) {
     port: result.data.PORT,
     mongoUri: result.data.MONGODB_URI,
     dbName: result.data.MONGODB_DB,
+    jwtSecret: result.data.JWT_SECRET,
+    jwtIssuer: result.data.JWT_ISSUER,
+    jwtAudience: result.data.JWT_AUDIENCE,
+    tokenTtlSeconds: 900,
+    loginLimit: 10,
+    loginWindowMs: 15 * 60 * 1000,
   });
 }
